@@ -19,8 +19,9 @@ public:
 private:
     static constexpr int NREQUESTS = 3;
 
-    WiFiEventHandler wifi_handlers[3];
+    WiFiEventHandler handlers[3];
     WebServer web;
+    File file;
     WiFiUDP udp;
     mDNSResolver::Resolver resolver;
     std::queue<String> urls;
@@ -92,7 +93,12 @@ private:
     requests[NREQUESTS];
 
 public:
-    WiFiHomelet(): resolver(udp) {}
+    WiFiHomelet(): resolver(udp) {
+#ifdef DEBUG
+        Serial.begin(115200);
+#endif
+        LittleFS.begin();
+    }
 
     void begin(const char* name) {
         WiFi.mode(WIFI_AP_STA);
@@ -100,15 +106,15 @@ public:
         WiFi.setAutoConnect(true);
         WiFi.setAutoReconnect(true);
         WiFi.hostname(name);
-        wifi_handlers[0] = WiFi.onStationModeConnected(
+        handlers[0] = WiFi.onStationModeConnected(
             [](const WiFiEventStationModeConnected&) {
                 WiFi.enableAP(false);
             });
-        wifi_handlers[1] = WiFi.onStationModeDisconnected(
+        handlers[1] = WiFi.onStationModeDisconnected(
             [](const WiFiEventStationModeDisconnected&) {
                 WiFi.enableAP(true);
             });
-        wifi_handlers[2] = WiFi.onStationModeGotIP(
+        handlers[2] = WiFi.onStationModeGotIP(
             [&](const WiFiEventStationModeGotIP& event) {
 #ifdef DEBUG
                 Serial.printf("Got IP: %s\n", event.ip.toString().c_str());
@@ -122,7 +128,6 @@ public:
         WiFi.softAPConfig(ap_ip, ap_ip, net_mask);
         WiFi.softAP(name);
         WiFi.begin();
-        LittleFS.begin();
         web.begin();
         onRequest("/wifi", [&](WebServer& web, JsonDocument& json) -> bool {
             if(!web.hasArg("ssid")) {
@@ -204,7 +209,6 @@ public:
                 web.send(200, "text/html", html);
             },
             [&]() {
-                static File file;
                 int code = 1;
                 String msg;
                 HTTPUpload& upload = web.upload();
@@ -235,6 +239,9 @@ public:
                     code = -1;
                     msg = "aborted to upload";
                 }
+#ifdef DEBUG
+                Serial.printf("so far uploaded %lu bytes\n", upload.totalSize);
+#endif
                 if(code == 0) {
                     web.send(200, "application/json", "{code: 0, size: " + msg + "}");
                 }
@@ -284,6 +291,9 @@ public:
                     code = -1;
                     msg = "aborted to upload";
                 }
+#ifdef DEBUG
+                Serial.printf("so far uploaded %lu bytes\n", upload.totalSize);
+#endif
                 if(code == 0) {
                     web.send(200, "application/json", "{code: 0, size: " + msg + "}");
                 }
