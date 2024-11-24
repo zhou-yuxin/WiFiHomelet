@@ -31,7 +31,7 @@ public:
         LittleFS.begin();
     }
 
-    void begin(const char* name) {
+    void begin(const String& name) {
         WiFi.mode(WIFI_AP_STA);
         WiFi.persistent(true);
         WiFi.setAutoConnect(true);
@@ -232,9 +232,9 @@ public:
         );
     }
 
-    void onRequest(const char* URI, std::function<bool(WebServer&, JsonDocument&)> handler,
+    void onRequest(const String& uri, std::function<bool(WebServer&, JsonDocument&)> handler,
             size_t json_size = 256) {
-        web.on(URI, [&, handler, json_size]() {
+        web.on(uri, [&, handler, json_size]() {
             DynamicJsonDocument json(json_size);
             if(!handler(web, json)) {
                 return;
@@ -247,8 +247,7 @@ public:
         });
     }
 
-    bool httpGet(const char* URL, std::function<void(const String&)> callback = nullptr) {
-        String url(URL);
+    bool httpGet(String url, std::function<void(const String&)> callback = nullptr) {
         if(!url.startsWith("http://")) {
             return false;
         }
@@ -299,3 +298,22 @@ public:
     }
 
 };
+
+#define READ_CONFIG_BEGIN(fname)                                        \
+    do {                                                                \
+        File file = LittleFS.open(String("/") + fname, "r");            \
+        if(!file) {                                                     \
+            break;                                                      \
+        }                                                               \
+        DynamicJsonDocument json(file.size() * 2);                      \
+        DeserializationError error = deserializeJson(json, file);       \
+        file.close();                                                   \
+        if(error != DeserializationError::Ok) {                         \
+            break;                                                      \
+        }
+
+#define ADD_CONFIG_FIELD(name, type)                                    \
+    name = json[#name].as<type>();
+
+#define READ_CONFIG_END()                                               \
+    } while(0);
