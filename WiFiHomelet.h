@@ -299,21 +299,21 @@ public:
 
 };
 
-#define READ_CONFIG_BEGIN(fname)                                        \
-    do {                                                                \
-        File file = LittleFS.open(String("/") + fname, "r");            \
-        if(!file) {                                                     \
-            break;                                                      \
-        }                                                               \
-        DynamicJsonDocument json(file.size() * 2);                      \
-        DeserializationError error = deserializeJson(json, file);       \
-        file.close();                                                   \
-        if(error != DeserializationError::Ok) {                         \
-            break;                                                      \
+#define BEGIN_CONFIG(fname)                                         \
+    do {                                                            \
+        File file = LittleFS.open(String("/") + fname, "r");        \
+        if(!file) {                                                 \
+            break;                                                  \
+        }                                                           \
+        DynamicJsonDocument json(file.size() * 2);                  \
+        DeserializationError error = deserializeJson(json, file);   \
+        file.close();                                               \
+        if(error != DeserializationError::Ok) {                     \
+            break;                                                  \
         }
 
-#define ADD_CONFIG_FIELD(name, type)                                    \
-    name = json[#name].as<type>();
+#define CONFIG_FIELD(name)                                          \
+        name = json[#name].as<decltype(name)>();
 
-#define READ_CONFIG_END()                                               \
+#define END_CONFIG()                                                \
     } while(0);

@@ -4,7 +4,7 @@
 
 namespace Device {
 
-class Binary {
+class Switch {
 
 private:
     uint8_t pin;
@@ -91,6 +91,47 @@ public:
             last_state = state;
         }
         return state;
+    }
+
+};
+
+class Mode {
+
+public:
+    static constexpr uint8_t OFF = 0;
+    static constexpr uint8_t ON = 1;
+    static constexpr uint8_t AUTO = 2;
+
+private:
+    uint8_t mode;
+
+public:
+    Mode(): mode(AUTO) {
+    }
+
+    const char* toString() const {
+        return getMapping()[mode];
+    }
+
+    bool fromString(const String& str) {
+        const char** mapping = getMapping();
+        for(uint8_t i = 0; i < 3; i++) {
+            if(str.equalsIgnoreCase(mapping[i])) {
+                mode = i;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool operator==(uint8_t value) const {
+        return mode == value;
+    }
+
+private:
+    const char** getMapping() const {
+        static const char* mapping[] = {"off", "on", "auto"};
+        return mapping;
     }
 
 };
