@@ -1,5 +1,7 @@
 #pragma once
 
+#include <numeric>
+
 #include <Ticker.h>
 #include <Updater.h>
 #include <LittleFS.h>
@@ -297,23 +299,73 @@ public:
         resolver.loop();
     }
 
+public:
+    static bool parse(const String& arg, bool& value) {
+        if(arg == "1" || arg.equalsIgnoreCase("true")) {
+            value = true;
+            return true;
+        }
+        else if(arg == "0" || arg.equalsIgnoreCase("false")) {
+            value = false;
+            return true;
+        }
+        return false;
+    }
+
+    template <typename T>
+    static bool parse(const String& arg, T& value,
+            T min = std::numeric_limits<T>::lowest(),
+            T max = std::numeric_limits<T>::max()) {
+        const char* format;
+        if(std::is_same<T, int32_t>::value) {
+            format = "%d";
+        }
+        else if(std::is_same<T, uint32_t>::value) {
+            format = "%u";
+        }
+        else if(std::is_same<T, float>::value) {
+            format = "%f";
+        }
+        else if(std::is_same<T, uint8_t>::value) {
+            format = "%hhu";
+        }
+        else {
+            return false;
+        }
+        return sscanf(arg.c_str(), format, &value) == 1 &&
+            min <= value && value <= max;
+    }
+
 };
 
-#define BEGIN_CONFIG(fname)                                         \
-    do {                                                            \
-        File file = LittleFS.open(String("/") + fname, "r");        \
-        if(!file) {                                                 \
-            break;                                                  \
-        }                                                           \
-        DynamicJsonDocument json(file.size() * 2);                  \
-        DeserializationError error = deserializeJson(json, file);   \
-        file.close();                                               \
-        if(error != DeserializationError::Ok) {                     \
-            break;                                                  \
+#define BEGIN_CONFIG(fname)                                             \
+    {                                                                   \
+        File _file = LittleFS.open(String("/") + fname, "r");           \
+        DynamicJsonDocument _json(bool(_file) ? _file.size() * 2 : 64); \
+        if(bool(_file)) {                                               \
+            deserializeJson(_json, _file);                              \
+            _file.close();                                              \
         }
 
-#define CONFIG_FIELD(name)                                          \
-        name = json[#name].as<decltype(name)>();
+#define CONFIG_FIELD(name, default_value)                               \
+        if(_json.containsKey(#name)) {                                  \
+            name = _json[#name].as<decltype(name)>();                   \
+        }                                                               \
+        else {                                                          \
+            name = default_value;                                       \
+        }
 
-#define END_CONFIG()                                                \
-    } while(0);
+#define CONFIG_FIELD_EX(type, name, default_value, action)              \
+        {                                                               \
+            type name;                                                  \
+            if(_json.containsKey(#name)) {                              \
+                name = _json[#name].as<type>();                         \
+            }                                                           \
+            else {                                                      \
+                name = default_value;                                   \
+            }                                                           \
+            action;                                                     \
+        }
+
+#define END_CONFIG()                                                    \
+    }
