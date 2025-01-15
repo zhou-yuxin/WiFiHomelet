@@ -4,74 +4,104 @@
 
 namespace Device {
 
+template <bool trigger_on_low = true>
 class Switch {
 
 private:
     uint8_t pin;
-    bool trigger_on_low;
 
 public:
-    void begin(uint8_t pin, bool trigger_on_low = true) {
+    void begin(uint8_t pin) {
         this->pin = pin;
-        this->trigger_on_low = trigger_on_low;
         pinMode(pin, OUTPUT);
-        setState(false);
+        set(false);
     }
 
-    bool getState() const {
+    bool get() const {
         return (digitalRead(pin) == LOW) == trigger_on_low;
     }
 
-    void setState(bool trigger) {
-        digitalWrite(pin, trigger == trigger_on_low ? LOW : HIGH);
+    void set(bool state) {
+        digitalWrite(pin, state == trigger_on_low ? LOW : HIGH);
+    }
+
+    bool set(const String& arg) {
+        bool state;
+        if(WiFiHomelet::parse(arg, state)) {
+            set(state);
+            return true;
+        }
+        return false;
     }
 
 };
 
+template <bool trigger_on_high = true>
 class PWM {
 
 private:
+    static constexpr uint32_t RANGE = 1000;
+
+private:
     uint8_t pin;
-    uint8_t percent;
+    float ratio;
 
 public:
     void begin(uint8_t pin, uint32_t freq = 10000) {
         this->pin = pin;
         pinMode(pin, OUTPUT);
         analogWriteFreq(freq);
-        analogWriteRange(100);
-        setRatio(0);
+        analogWriteRange(RANGE);
+        set(0);
     }
 
-    uint8_t getRatio() const {
-        return percent;
+    float get() const {
+        return ratio;
     }
 
-    void setRatio(uint8_t percent) {
-        this->percent = percent;
-        analogWrite(pin, percent);
+    String get(const char* format = "%.4f") const {
+        char buffer[32];
+        sprintf(buffer, format, ratio);
+        return String(buffer);
+    }
+
+    bool set(float ratio) {
+        if(0.0f <= ratio && ratio <= 1.0f) {
+            this->ratio = ratio;
+            int value = int(RANGE * ratio);
+            analogWrite(pin, trigger_on_high ? value : RANGE - value);
+            return true;
+        }
+        return false;
+    }
+
+    bool set(const String& arg) {
+        float ratio;
+        if(WiFiHomelet::parse(arg, ratio, 0.0f, 1.0f)) {
+            return set(ratio);
+        }
+        return false;
     }
 
 };
 
+template <bool trigger_on_low = true>
 class Radar {
 
 private:
     uint8_t pin;
-    bool trigger_on_low;
     bool last_state;
     String report_url;
     WiFiHomelet* wifi_homelet;
 
 public:
-    void begin(uint8_t pin, bool trigger_on_low = true) {
+    void begin(uint8_t pin) {
         this->pin = pin;
-        this->trigger_on_low = trigger_on_low;
         pinMode(pin, INPUT);
-        last_state = getState();
+        last_state = get();
     }
 
-    bool getState() const {
+    bool get() const {
         return (digitalRead(pin) == LOW) == trigger_on_low;
     }
 
@@ -80,8 +110,11 @@ public:
         wifi_homelet = homelet;
     }
 
-    bool tick() {
-        bool state = getState();
+    bool tick(std::function<void(bool)> action = nullptr) {
+        bool state = get();
+        if(action) {
+            action(state);
+        }
         if(state != last_state) {
             if(!report_url.isEmpty()) {
                 String url = report_url + "&name=" + WiFi.hostname()
@@ -91,47 +124,6 @@ public:
             last_state = state;
         }
         return state;
-    }
-
-};
-
-class Mode {
-
-public:
-    static constexpr uint8_t OFF = 0;
-    static constexpr uint8_t ON = 1;
-    static constexpr uint8_t AUTO = 2;
-
-private:
-    uint8_t mode;
-
-public:
-    Mode(): mode(AUTO) {
-    }
-
-    const char* toString() const {
-        return getMapping()[mode];
-    }
-
-    bool fromString(const String& str) {
-        const char** mapping = getMapping();
-        for(uint8_t i = 0; i < 3; i++) {
-            if(str.equalsIgnoreCase(mapping[i])) {
-                mode = i;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool operator==(uint8_t value) const {
-        return mode == value;
-    }
-
-private:
-    const char** getMapping() const {
-        static const char* mapping[] = {"off", "on", "auto"};
-        return mapping;
     }
 
 };
